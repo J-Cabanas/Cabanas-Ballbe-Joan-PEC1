@@ -1,0 +1,51 @@
+---
+title: "Apendice_JoanCabanas_PEC1_ADO"
+author: "Joan Cabanas Ballbe"
+date: "2025-03-27"
+output: html_document
+---
+
+![](Ficheros_PEC1/Logo_UOC1.jpg)
+
+Si quieres accder a la UOC haz clic en enlace:<http:www.uoc.edu>.
+
+# **Máster en Bioestadística y Bioinformatica**
+
+# Análisis de datos ómicos (M0-157)
+
+## Primera prueba de evaluación continua.
+
+### **Instalación previa de los paquetes necesarios.**
+
+```{r setup, include=FALSE}
+require(knitr)
+# Se incluye este fragmento de codigo tal como esta, para configurar las opciones.
+opts_chunk$set(comment = NA, prompt = TRUE, tidy = FALSE, 
+               fig.width = 7, fig.height = 7,echo = TRUE, 
+               message = FALSE, warning = FALSE, cache=TRUE)
+Sys.setlocale("LC_TIME", "C")
+```
+
+Paquestes necesarios a instalar.
+
+```{r eval= FALSE}
+# Instalacion, en esta celda se muestra el codigo necesario pero no se ejecuta, si quereis ejecutarlos introducir "eval=TRUE".
+install.packages("readr")
+install.packages("ggplot2")
+install.packages("GGally")
+install.packages("ggcorrplot")
+install.packages("faraway")
+```
+
+A continuación, cargamos todos los paquetes necesarios previamente instalados.
+
+```{r message= FALSE }
+# Cargamos en la memoria los siguientes paquetes.
+library(readr)       # Nos permite leer los archivos, importando los datos que contienen.
+library(ggplot2)     # Para la creaccion de graficos con ggplot.
+library(GGally)      # Permite ampliar la extension del paquete ggplot2.
+library(ggcorrplot)  # Permite realizar graficos de correlacion visuales.
+library(faraway)     # Incluye funciones utiles para el analisis estadistico (modelos lineales y regresion).
+```
+
+### **Ejercicio 1**
