@@ -15,7 +15,9 @@ Si quieres accder a la UOC haz clic en enlace:<http:www.uoc.edu>.
 
 ## Primera prueba de evaluación continua.
 
-### **Instalación previa de los paquetes necesarios.**
+### **Instalación.**
+
+Primero es necesario una instalación previa con todos los paquetes empleados en el análisis.
 
 ```{r setup, include=FALSE}
 require(knitr)
@@ -29,23 +31,182 @@ Sys.setlocale("LC_TIME", "C")
 Paquestes necesarios a instalar.
 
 ```{r eval= FALSE}
-# Instalacion, en esta celda se muestra el codigo necesario pero no se ejecuta, si quereis ejecutarlos introducir "eval=TRUE".
+# Instalacion. En esta celda se muestra el codigo necesario pero no se ejecuta, si requiere su ejecucion intrudizca "eval=TRUE".
+install.packages("BiocManager")
+BiocManager::install("SummarizedExperiment")
+BiocManager::install("tidyverse")
 install.packages("readr")
 install.packages("ggplot2")
-install.packages("GGally")
-install.packages("ggcorrplot")
-install.packages("faraway")
+install.packages("ggfortify")
 ```
+
+#### Carga paquetes.
 
 A continuación, cargamos todos los paquetes necesarios previamente instalados.
 
 ```{r message= FALSE }
 # Cargamos en la memoria los siguientes paquetes.
-library(readr)       # Nos permite leer los archivos, importando los datos que contienen.
+# CRAM
+library(readr) # Nos permite leer los archivos.
 library(ggplot2)     # Para la creaccion de graficos con ggplot.
-library(GGally)      # Permite ampliar la extension del paquete ggplot2.
-library(ggcorrplot)  # Permite realizar graficos de correlacion visuales.
-library(faraway)     # Incluye funciones utiles para el analisis estadistico (modelos lineales y regresion).
+library(ggfortify)
+
+# Bioconductor
+library(SummarizedExperiment)
+library(tidyverse)
 ```
 
-### **Ejercicio 1**
+### 1. Descargamos los datos de Metabolomics Workbench.
+
+En este caso hemos accedido a los archivos mediante el repositorio GitHub proporcionado **[ref: 1]**. Una vez que tenemos los archivos descargados, podemos proceder a cargar los datos en el entorno.
+
+En nuestro caso los datos escoguidos pertenecen al estudio **ST000291**.
+
+(es importante añadir que los datos se encuentran en tres ficheros en formato .csv y la información esta separada por ";")
+
+```{r}
+# Lectura de los tres ficheros.
+
+# Cargar datos de caracteristicas.
+features <- read.csv("Ficheros_PEC1/features.csv", row.names = 1, sep = ";")
+
+# Cargar metadatos de las muestras.
+metadata <- read.csv("Ficheros_PEC1/metadata.csv", row.names = 1, sep = ";")
+
+# Cargar nombres de metabolitos.
+metabolite_names <- read.csv("Ficheros_PEC1/metaboliteNames.csv", row.names = 1, sep = ";" )
+```
+
+```{r}
+# Comprovamos que se hayan cargado los datos correctamente, con las dimensiones correctas.
+dim(features)
+dim(metadata)
+dim(metabolite_names)
+```
+
+Análisis de la concordancia entre los datos de los distintos ficheros, se verifica que los nombres de las filas y columnas coincidan.
+
+```{r}
+# Verificamos la concordancia entre los datos, que los nombres de las muestras coincidan.
+all(rownames(metadata) %in% colnames(features))  # Debe devolver TRUE.
+```
+
+```{r}
+# Analisis mas detallado.
+# Revisamos los nombres de las columnas de features, deben coincidir con las filas de metadata.
+head(colnames(features))
+# Revisamos los nombres de las filas de metadata, deben coincidir con las columnas de features.
+head(rownames(metadata))
+# Revisamos los nombres de las filas de features, deben coincidir con las filas de metabolite_names.
+head(rownames(features))
+# Revisamos los nombres de las filas de metabolite_names, deben coincidir con las filas de features.
+head(rownames(metabolite_names))
+```
+
+Corregimos la concordancia, mediante la renombración de las filas en base a las columnas de "features".
+
+```{r}
+# Renombramos el nombre de las filas para conseguir que coincidan con las columnas de "features.csv".
+rownames(metadata) <- colnames(features)
+rownames(metabolite_names) <- rownames(features)
+```
+
+### 2. Creamos el objeto SummarizedExperiment.
+
+```{r}
+sumEx<-SummarizedExperiment(assays = list(counts = as.matrix(features)),
+                         colData = metadata,
+                         rowData = metabolite_names)
+```
+
+Análisis exploratorio inicial del objeto "sumEx".
+
+```{r}
+# Mostramos el resumen del objeto.
+sumEx
+# Visualizamos los metadatos de muestras.
+colData(sumEx)
+# Visualizamos los metadatos de metabolitos.
+rowData(sumEx)
+# Mostramos la matriz de expresion.
+assay(sumEx)
+```
+
+### 3. Análisis exploratorio de los datos.
+
+#### 3.1 Análisis estadístico univariado.
+
+```{r}
+# Observamos las dimensiones del conjunto de datos.
+dim(assay(sumEx))
+# Observamos la estadistica descriptivas de las muestras.
+summary(assay(sumEx))
+```
+
+Realizamos un Boxplot (diagrama de cajas) para observar todas las muestras a la vez y tener una visión global.
+
+```{r}
+# Boxplot de los valores de expresion.
+boxplot(assay(sumEx), las=2, col="lightblue",
+        main="Distribución de los valores de expresión",
+        xlab="Muestras", ylab="Expresión")
+```
+
+Podemos observar que en el primer boxplot se muestran valores de expresión altamente asimétricos, por lo que nos ayudaremos de realizar una transformación logarítmica para estabilizar la varianza.
+
+```{r}
+# Realizamos una transformacion logaritmica para mejorar la simetria.
+logExpr <- log2(assay(sumEx) + 1) # Sumamos 1 para evitar log(0).
+
+# Boxplot despues de la transformacion logaritmica.
+boxplot(logExpr, las=2, col="khaki1",
+        main="Distribución de los valores log2 de expresión",
+        xlab="Muestras", ylab="log2(Expresión)")
+
+```
+
+**3.2 Análisis Multivariante.**
+
+Análisis de Componentes Principales (PCA).
+
+Es necesario solucionar el manejo de valores faltantes o infinitos. En este caso hemos decidido realizar una eliminacion de las muestras con valores problematicos.
+
+```{r}
+# Eliminacion de valores valores problematicos, NA, NaN o Inf.
+logExprClean <- logExpr[!apply(is.na(logExpr) | is.nan(logExpr) | is.infinite(logExpr), 1, any), ]
+```
+
+```{r}
+# Calculamos PCA con datos transformados.
+pcaRes <- prcomp(t(logExprClean), scale=TRUE)
+# Mostramos la proporcion de varianza explicada.
+summary(pcaRes)
+
+# Realizamos la grafica del PCA.
+autoplot(pcaRes, data = as.data.frame(colData(sumEx)), 
+         colour = "Treatment", label = TRUE, label.size = 3) +
+  ggtitle("Análisis de Componentes Principales (PCA)") +
+  theme_minimal()
+```
+
+Si los grupos experimentales se separan en el PCA, significa que la variabilidad se asocia con los tratamientos. Si hay solapamiento, pueden existir otras fuentes de variabilidad como efectos batch.
+
+**3.3 Agrupamiento jerárquico.**
+
+```{r}
+# Realizamos una matriz de distancias y clustering jerarquico.
+distMat <- dist(t(logExpr))
+hc <- hclust(distMat, method="average")
+
+# Generamos el dendrograma.
+plot(hc, main="Clustering jerárquico de muestras", hang=-1)
+```
+
+Si las muestras del mismo grupo experimental se agrupan juntas en el dendrograma, es una buena señal de que los datos reflejan las condiciones biológicas esperadas. Si hay mezclas inesperadas, podría haber problemas técnicos o efectos batch.
+
+### 4. Referencias.
+
+**[1]** *metaboData/Datasets/2024-fobitools-UseCase_1 at main ·
+nutrimetabolomics/metaboData*. (n.d.). Retrieved April 2, 2025,
+from
+[https://github.com/nutrimetabolomics/metaboData/tree/main/Datasets/2024-fobitools-UseCase_1](https://github.com/nutrimetabolomics/metaboData/tree/main/Datasets/2024-fobitools-UseCase%E2%82%81)
